@@ -44,7 +44,34 @@ with open(file_output, 'w') as f:
 print(f"\nModified DTASelect-filter.txt file saved to {file_output}")
 ```
 
-More advance use cases can be found in examples.py
+## Streamlit Usage
+Here's a basic example of how to use the package with streamlits file_uploader:
+
+```python
+import streamlit as st
+from filterframes import from_dta_select_filter, to_dta_select_filter
+
+uploaded_filter_file = st.file_uploader("Choose a DTASelect-filter.txt file", type="txt")
+
+if uploaded_filter_file:
+    header_lines, peptide_df, protein_df, end_lines = from_dta_select_filter(StringIO(uploaded_filter_file.getvalue().decode('utf-8')))
+    
+    st.header('Peptide df')
+    st.dataframe(peptide_df)
+    st.header('Protein df')
+    st.dataframe(protein_df)
+
+    # Modify peptide or protein dataframes as needed (e.g., filtering, normalization, etc.)
+    # ...
+
+    io = to_dta_select_filter(header_lines, peptide_df, protein_df, end_lines)
+
+    st.download_button(label="Download Filter",
+                       data=io.getvalue(),
+                       file_name="DTASelect-filter.txt",
+                       mime="text/plain")
+
+```
 
 ## Functions
 The main functions provided by the package are:
