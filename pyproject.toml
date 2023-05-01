@@ -27,3 +27,4 @@ version = {attr = "filterframes.__version__"}
 
 [tool.pylint]
 max-line-length = 120
+fail-under = 9.0

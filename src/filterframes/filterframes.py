@@ -112,7 +112,6 @@ def _write_lines(file_output, lines):
     for line in lines:
         file_output.write(line + '\n')
 
-
 def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextIO]) -> (
         List[str], pd.DataFrame, pd.DataFrame, List[str]):
     """
