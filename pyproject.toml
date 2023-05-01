@@ -24,3 +24,6 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.dynamic]
 version = {attr = "filterframes.__version__"}
+
+[tool.pylint]
+max-line-length = 120

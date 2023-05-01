@@ -1,3 +1,4 @@
+"""Module providing function for converting between DTASelectFilter.tx files and pandas DataFrame objects"""
 import os
 from enum import Enum
 from io import TextIOWrapper, StringIO
@@ -22,16 +23,16 @@ def _get_lines(file_input: Union[str, TextIOWrapper, StringIO, TextIO]):
     Raises:
         ValueError: If the input type is not supported.
     """
-    if type(file_input) is str:
+    if isinstance(file_input, str):
         if os.path.exists(file_input):
-            with open(file_input) as f:
-                lines = f.read().split('\n')
+            with open(file=file_input, mode='r', encoding='UTF-8') as file:
+                lines = file.read().split('\n')
         else:
             lines = file_input.split('\n')
-    elif type(file_input) is TextIOWrapper or type(file_input) is TextIO:
+    elif isinstance(file_input, (TextIOWrapper, TextIO)):
         lines = file_input.read().split('\n')
 
-    elif type(file_input) is StringIO:
+    elif isinstance(file_input, StringIO):
         lines = file_input.getvalue().split('\n')
     else:
         raise ValueError(f'Unsupported input type: {type(file_input)}!')
@@ -81,7 +82,7 @@ def _create_file_name(peptide_row: pd.Series) -> str:
     return f"{peptide_row['FileName']}.{peptide_row['LowScan']}.{peptide_row['HighScan']}.{peptide_row['Charge']}"
 
 
-def _reorder_columns(df: pd.DataFrame, column: str, new_position: int) -> pd.DataFrame:
+def _reorder_columns(dataframe: pd.DataFrame, column: str, new_position: int) -> pd.DataFrame:
     """
     Reorder columns in a dataframe by moving a specified column to a new position.
 
@@ -94,9 +95,9 @@ def _reorder_columns(df: pd.DataFrame, column: str, new_position: int) -> pd.Dat
         pd.DataFrame: A dataframe with reordered columns.
     """
 
-    columns = df.columns.tolist()
+    columns = dataframe.columns.tolist()
     columns.insert(new_position, columns.pop(columns.index(column)))
-    return df[columns]
+    return dataframe[columns]
 
 
 def _write_lines(file_output, lines):
@@ -134,6 +135,9 @@ def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextI
     lines = _get_lines(file_input)
 
     class FileState(Enum):
+        """
+        Enum for specifying the different parts of the DTASelect-filter.txt file
+        """
         HEADER = 1
         DATA = 2
         INFO = 3
@@ -141,24 +145,21 @@ def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextI
     file_state = FileState.HEADER
 
     header_lines, end_lines = [], []
-
-    peptide_data = None
-    protein_data = None
-
-    current_protein_grp = 0
-    peptide_line_cnt = 0
+    peptide_data,protein_data = None, None
+    current_protein_grp, peptide_line_cnt = 0, 0
 
     for line in lines:
         line_elements = line.rstrip().split("\t")
 
-        if line.startswith('Locus'):
+        if line.startswith('Locus'):  # Protein Line Header
             protein_data = {key: [] for key in line_elements}
             protein_data['ProteinGroup'] = []
-        if line.startswith('Unique'):
+
+        if line.startswith('Unique'): # Peptide Line Header
             peptide_data = {key: [] for key in line_elements}
             peptide_data['ProteinGroup'] = []
 
-        # update file state
+        # Update file state
         if len(line_elements) > 0 and line_elements[0] == 'Unique':
             header_lines.append(line)
             file_state = FileState.DATA

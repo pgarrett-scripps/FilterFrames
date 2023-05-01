@@ -1,3 +1,5 @@
+"""specifies filterframes version and * functionality"""
+
 from .filterframes import (
     from_dta_select_filter,
     to_dta_select_filter
