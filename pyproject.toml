@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools"]
+
+[project]
+name = "filterframes"
+authors = [
+    {name = "Patrick Garrett", email = "pgarrett@scripps.edu"},
+]
+description = "A very simple DTASelect-Filter.txt parser."
+readme = "README.md"
+dynamic = ["version"]
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pandas",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.dynamic]
+version = {attr = "filterframes.__version__"}
