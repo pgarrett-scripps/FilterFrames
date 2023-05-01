@@ -112,6 +112,7 @@ def _write_lines(file_output, lines):
     for line in lines:
         file_output.write(line + '\n')
 
+
 def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextIO]) -> (
         List[str], pd.DataFrame, pd.DataFrame, List[str]):
     """
@@ -144,7 +145,7 @@ def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextI
     file_state = FileState.HEADER
 
     header_lines, end_lines = [], []
-    peptide_data,protein_data = None, None
+    peptide_data, protein_data = None, None
     current_protein_grp, peptide_line_cnt = 0, 0
 
     for line in lines:
@@ -154,7 +155,7 @@ def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextI
             protein_data = {key: [] for key in line_elements}
             protein_data['ProteinGroup'] = []
 
-        if line.startswith('Unique'): # Peptide Line Header
+        if line.startswith('Unique'):  # Peptide Line Header
             peptide_data = {key: [] for key in line_elements}
             peptide_data['ProteinGroup'] = []
 

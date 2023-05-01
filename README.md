@@ -1,25 +1,41 @@
 ![example workflow](https://github.com/pgarrett-scripps/FilterFrames/actions/workflows/python-package.yml/badge.svg)
 ![example workflow](https://github.com/pgarrett-scripps/FilterFrames/actions/workflows/pylint.yml/badge.svg)
 
-# pandas-dta-select-parser
+# filterframes
 
-`pandas_dta_select_parser` is a Python package that provides an easy way to parse and manipulate DTASelect filter 
+filterframes is a Python package that provides an easy way to parse and manipulate DTASelect filter 
 files using pandas. The package allows you to read DTASelect-filter.txt files, create peptide and protein dataframes, 
-modify the dataframes, and write the modified dataframes back to a new DTASelect-filter.txt file.
+modify the dataframes, and write the modified dataframes back to a new DTASelect-filter.txt file. 
+
+### Note on dataframe columns:
+
+The column names in the peptide and protein dataframes will correspond to the header lines in the DTASelect-filter.txt
+files. In order to edit and output a valid DTASelect-filter file you must ensure that the
+peptide and protein dataframe column names and order are conserved, and that no additional columns are 
+included. Any changes in the columns order or names will be reflected  in the output DTASelect-filter.txt file.
 
 ## Installation
 
-You can install `pandas_dta_select_parser` using pip:
+You can install filterframes using pip:
 
 ```sh
-pip install pandas-dta-select-parser
+pip install filterframes
+```
+
+You can also install filterframes locally:
+
+```sh
+git clone https://github.com/pgarrett-scripps/FilterFrames.git
+cd filterframes
+pip install .
 ```
 
 ## Usage
-Here's a basic example of how to use the package:
 
+Here are some basic examples of how to use the package:
+
+### Example Python Script:
 ```python
-# example.py
 from filterframes import from_dta_select_filter, to_dta_select_filter
 
 # Read DTASelect-filter.txt file and create peptide and protein dataframes
@@ -44,10 +60,12 @@ with open(file_output, 'w') as f:
 print(f"\nModified DTASelect-filter.txt file saved to {file_output}")
 ```
 
-## Streamlit Usage
-Here's a basic example of how to use the package with streamlits file_uploader:
+### Example Streamlit App:
 
 ```python
+# app.py
+from io import StringIO
+
 import streamlit as st
 from filterframes import from_dta_select_filter, to_dta_select_filter
 
@@ -70,7 +88,6 @@ if uploaded_filter_file:
                        data=io.getvalue(),
                        file_name="DTASelect-filter.txt",
                        mime="text/plain")
-
 ```
 
 ## Functions
