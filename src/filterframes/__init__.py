@@ -10,4 +10,4 @@ __all__ = [
     'to_dta_select_filter'
 ]
 
-__version__ = '0.1.2'
+__version__ = '0.1.3'

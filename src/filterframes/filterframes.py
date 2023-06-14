@@ -2,12 +2,14 @@
 import os
 from enum import Enum
 from io import TextIOWrapper, StringIO
-from typing import List, Union, Any, TextIO
+from typing import List, Union, Any, TextIO, Generator
 
 import pandas as pd
 
+FILE_TYPES = Union[str, TextIOWrapper, StringIO, TextIO]
 
-def _get_lines(file_input: Union[str, TextIOWrapper, StringIO, TextIO]):
+
+def _get_lines(file_input: FILE_TYPES) -> Generator[str, None, None]:
     """
     Retrieve lines from a file or string input.
 
@@ -18,26 +20,33 @@ def _get_lines(file_input: Union[str, TextIOWrapper, StringIO, TextIO]):
         file_input (Union[str, TextIOWrapper, StringIO]): The input source.
 
     Returns:
-        list: A list of lines from the input source.
+        generator: A generator that yields lines from the input source.
 
     Raises:
         ValueError: If the input type is not supported.
     """
-    if isinstance(file_input, str):
+    if isinstance(file_input, str): # File path or string
         if os.path.exists(file_input):
             with open(file=file_input, mode='r', encoding='UTF-8') as file:
-                lines = file.read().split('\n')
+                for line in file:
+                    yield line.rstrip('\n')
         else:
-            lines = file_input.split('\n')
-    elif isinstance(file_input, (TextIOWrapper, TextIO)):
-        lines = file_input.read().split('\n')
-
-    elif isinstance(file_input, StringIO):
-        lines = file_input.getvalue().split('\n')
+            for line in file_input.split('\n'):
+                yield line.rstrip('\n')
+    elif isinstance(file_input, (TextIOWrapper, TextIO)): # TextIOWrapper or StringIO
+        file_input.seek(0)
+        for line in file_input:
+            yield line.rstrip('\n')
+    elif isinstance(file_input, StringIO): # StringIO
+        file_input.seek(0)
+        for line in file_input.readlines():
+            yield line.rstrip('\n')
     else:
-        raise ValueError(f'Unsupported input type: {type(file_input)}!')
-
-    return lines[:-1]
+        try:
+            for line in file_input:
+                yield line.decode('UTF-8').rstrip('\n')
+        except Exception as e:
+            raise ValueError(f'Unsupported input type: {type(file_input)}!')
 
 
 def _convert_to_best_datatype(values: List[Any]):
@@ -87,7 +96,7 @@ def _reorder_columns(dataframe: pd.DataFrame, column: str, new_position: int) ->
     Reorder columns in a dataframe by moving a specified column to a new position.
 
     Args:
-        df (pd.DataFrame): The input dataframe.
+        dataframe (pd.DataFrame): The input dataframe.
         column (str): The column to be moved.
         new_position (int): The new position for the specified column.
 
@@ -148,7 +157,7 @@ def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextI
     peptide_data, protein_data = None, None
     current_protein_grp, peptide_line_cnt = 0, 0
 
-    for line in lines:
+    for i, line in enumerate(lines):
         line_elements = line.rstrip().split("\t")
 
         if line.startswith('Locus'):  # Protein Line Header
@@ -159,8 +168,6 @@ def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextI
             peptide_data = {key: [] for key in line_elements}
             peptide_data['ProteinGroup'] = []
 
-        # Update file state
-        if len(line_elements) > 0 and line_elements[0] == 'Unique':
             header_lines.append(line)
             file_state = FileState.DATA
             continue
@@ -173,6 +180,7 @@ def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextI
 
         if file_state == FileState.DATA:
             if line_elements[0] == '' or '*' in line_elements[0] or line_elements[0].isnumeric():
+
                 for key, value in zip(peptide_data, line_elements):
                     peptide_data[key].append(value)
                 peptide_data['ProteinGroup'].append(current_protein_grp)
@@ -211,6 +219,9 @@ def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextI
 
     peptide_df = peptide_df.convert_dtypes()
     protein_df = protein_df.convert_dtypes()
+
+    if end_lines[-1] == '':
+        end_lines = end_lines[:-1]
 
     return header_lines, peptide_df, protein_df, end_lines
 
