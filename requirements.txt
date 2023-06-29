@@ -6,7 +6,7 @@
 #
 numpy==1.24.3
     # via pandas
-pandas==2.0.1
+pandas==2.0.3
     # via filterframes (setup.py)
 python-dateutil==2.8.2
     # via pandas
