@@ -4,7 +4,7 @@
 #
 #    pip-compile
 #
-numpy==1.24.3
+numpy==1.25.1
     # via pandas
 pandas==2.0.1
     # via filterframes (setup.py)
