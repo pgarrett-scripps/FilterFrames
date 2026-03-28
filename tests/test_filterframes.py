@@ -15,7 +15,7 @@ class TestRoundTrip:
     """Round-trip tests: read -> parse -> write -> re-parse -> compare."""
 
     def test_v2_1_12_paser(self):
-        with open(os.path.join(DATA_DIR, "DTASelect-filter_V2_1_12_paser.txt"), "r") as file:
+        with open(os.path.join(DATA_DIR, "DTASelect-filter_V2_1_12_paser.txt")) as file:
             head_lines, peptide_df, protein_df, tail_lines = from_dta_select_filter(file)
         assert len(protein_df) == 3
 
@@ -29,7 +29,7 @@ class TestRoundTrip:
         assert tail_lines == tail_lines2
 
     def test_v2_1_13(self):
-        with open(os.path.join(DATA_DIR, "DTASelect-filter_V2_1_13.txt"), "r") as file:
+        with open(os.path.join(DATA_DIR, "DTASelect-filter_V2_1_13.txt")) as file:
             head_lines, peptide_df, protein_df, tail_lines = from_dta_select_filter(file)
         assert len(protein_df) == 8
 
@@ -48,33 +48,33 @@ class TestInputTypes:
 
     def test_file_path_input(self):
         path = os.path.join(DATA_DIR, "DTASelect-filter_V2_1_13.txt")
-        head_lines, peptide_df, protein_df, tail_lines = from_dta_select_filter(path)
+        _head_lines, peptide_df, protein_df, _tail_lines = from_dta_select_filter(path)
         assert len(protein_df) > 0
         assert len(peptide_df) > 0
 
     def test_string_input(self):
         path = os.path.join(DATA_DIR, "DTASelect-filter_V2_1_13.txt")
-        with open(path, "r") as f:
+        with open(path) as f:
             content = f.read()
-        head_lines, peptide_df, protein_df, tail_lines = from_dta_select_filter(content)
+        _head_lines, _peptide_df, protein_df, _tail_lines = from_dta_select_filter(content)
         assert len(protein_df) == 8
 
     def test_stringio_input(self):
         path = os.path.join(DATA_DIR, "DTASelect-filter_V2_1_13.txt")
-        with open(path, "r") as f:
+        with open(path) as f:
             content = f.read()
         sio = StringIO(content)
-        head_lines, peptide_df, protein_df, tail_lines = from_dta_select_filter(sio)
+        _head_lines, _peptide_df, protein_df, _tail_lines = from_dta_select_filter(sio)
         assert len(protein_df) == 8
 
     def test_stringio_input_rewind(self):
         """Ensure StringIO is rewound before reading (seek(0) is called internally)."""
         path = os.path.join(DATA_DIR, "DTASelect-filter_V2_1_13.txt")
-        with open(path, "r") as f:
+        with open(path) as f:
             content = f.read()
         sio = StringIO(content)
         sio.read()  # exhaust the StringIO
-        head_lines, peptide_df, protein_df, tail_lines = from_dta_select_filter(sio)
+        _head_lines, _peptide_df, protein_df, _tail_lines = from_dta_select_filter(sio)
         assert len(protein_df) == 8
 
 

@@ -6,14 +6,15 @@ import logging
 import os
 from collections.abc import Generator
 from enum import Enum
-from io import TextIOWrapper, StringIO
-from typing import Any, TextIO
+from io import StringIO, TextIOWrapper
+from typing import Any, TextIO, Union
 
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-FileTypes = str | TextIOWrapper | StringIO | TextIO
+# Union form required at runtime for Python 3.9 compatibility
+FileTypes = Union[str, TextIOWrapper, StringIO, TextIO]
 
 
 def _get_lines(file_input: FileTypes) -> Generator[str, None, None]:
@@ -35,24 +36,24 @@ def _get_lines(file_input: FileTypes) -> Generator[str, None, None]:
     if isinstance(file_input, str):  # File path or string
         if os.path.exists(file_input):
             logger.debug("Reading from file path: %s", file_input)
-            with open(file=file_input, mode='r', encoding='UTF-8') as file:
+            with open(file=file_input, encoding="UTF-8") as file:
                 for line in file:
-                    yield line.rstrip('\n')
+                    yield line.rstrip("\n")
         else:
             logger.debug("Reading from raw string input")
-            for line in file_input.split('\n'):
-                yield line.rstrip('\n')
+            for line in file_input.split("\n"):
+                yield line.rstrip("\n")
     elif isinstance(file_input, (TextIOWrapper, StringIO)):
         logger.debug("Reading from %s object", type(file_input).__name__)
         file_input.seek(0)
         for line in file_input:
-            yield line.rstrip('\n')
+            yield line.rstrip("\n")
     else:
         try:
             for line in file_input:
-                yield line.decode('UTF-8').rstrip('\n')
+                yield line.decode("UTF-8").rstrip("\n")  # ty: ignore[unresolved-attribute]
         except (AttributeError, TypeError, UnicodeDecodeError) as exc:
-            raise ValueError(f'Unsupported input type: {type(file_input)}') from exc
+            raise ValueError(f"Unsupported input type: {type(file_input)}") from exc
 
 
 def _convert_to_best_datatype(values: list[Any]) -> list[Any]:
@@ -108,9 +109,9 @@ def _reorder_columns(dataframe: pd.DataFrame, column: str, new_position: int) ->
         pd.DataFrame: A dataframe with reordered columns.
     """
 
-    columns = dataframe.columns.tolist()
+    columns: list[str] = dataframe.columns.tolist()
     columns.insert(new_position, columns.pop(columns.index(column)))
-    return dataframe[columns]
+    return dataframe.reindex(columns=columns)
 
 
 def _write_lines(file_output: TextIOWrapper | StringIO, lines: list[str]) -> None:
@@ -123,7 +124,7 @@ def _write_lines(file_output: TextIOWrapper | StringIO, lines: list[str]) -> Non
     """
 
     for line in lines:
-        file_output.write(line + '\n')
+        file_output.write(line + "\n")
 
 
 def from_dta_select_filter(
@@ -157,21 +158,21 @@ def from_dta_select_filter(
 
     header_lines: list[str] = []
     end_lines: list[str] = []
-    peptide_data = None
-    protein_data = None
+    peptide_data: dict[str, list[Any]] | None = None
+    protein_data: dict[str, list[Any]] | None = None
     current_protein_grp = 0
     peptide_line_cnt = 0
 
     for line in lines:
         line_elements = line.rstrip().split("\t")
 
-        if line.startswith('Locus'):  # Protein Line Header
+        if line.startswith("Locus"):  # Protein Line Header
             protein_data = {key: [] for key in line_elements}
-            protein_data['ProteinGroup'] = []
+            protein_data["ProteinGroup"] = []
 
-        if line.startswith('Unique'):  # Peptide Line Header
+        if line.startswith("Unique"):  # Peptide Line Header
             peptide_data = {key: [] for key in line_elements}
-            peptide_data['ProteinGroup'] = []
+            peptide_data["ProteinGroup"] = []
 
             header_lines.append(line)
             file_state = _FileState.DATA
@@ -184,11 +185,13 @@ def from_dta_select_filter(
             header_lines.append(line)
 
         if file_state == _FileState.DATA:
-            if line_elements[0] == '' or '*' in line_elements[0] or line_elements[0].isnumeric():
+            if peptide_data is None or protein_data is None:
+                continue
 
+            if line_elements[0] == "" or "*" in line_elements[0] or line_elements[0].isnumeric():
                 for key, value in zip(peptide_data, line_elements):
                     peptide_data[key].append(value)
-                peptide_data['ProteinGroup'].append(current_protein_grp)
+                peptide_data["ProteinGroup"].append(current_protein_grp)
 
                 peptide_line_cnt += 1
             else:
@@ -198,7 +201,7 @@ def from_dta_select_filter(
 
                 for key, value in zip(protein_data, line_elements):
                     protein_data[key].append(value)
-                protein_data['ProteinGroup'].append(current_protein_grp)
+                protein_data["ProteinGroup"].append(current_protein_grp)
 
         if file_state == _FileState.INFO:
             end_lines.append(line)
@@ -206,7 +209,11 @@ def from_dta_select_filter(
     if peptide_data is None or protein_data is None:
         raise ValueError("Input does not appear to be a valid DTASelect-filter file: missing header columns")
 
-    logger.debug("Parsed %d peptide columns, %d protein columns", len(peptide_data), len(protein_data))
+    logger.debug(
+        "Parsed %d peptide columns, %d protein columns",
+        len(peptide_data),
+        len(protein_data),
+    )
 
     for k in peptide_data:
         peptide_data[k] = _convert_to_best_datatype(peptide_data[k])
@@ -217,20 +224,20 @@ def from_dta_select_filter(
     peptide_df = pd.DataFrame(peptide_data)
     protein_df = pd.DataFrame(protein_data)
 
-    file_name_components = [fn.split('.') for fn in peptide_df['FileName']]
-    peptide_df.drop(['FileName'], axis=1, inplace=True)
+    file_name_components = [fn.split(".") for fn in peptide_df["FileName"]]
+    peptide_df.drop(["FileName"], axis=1, inplace=True)
 
-    peptide_df['FileName'] = _convert_to_best_datatype([comp[0] for comp in file_name_components])
-    peptide_df['FileName'] = peptide_df['FileName'].astype('category')
+    peptide_df["FileName"] = _convert_to_best_datatype([comp[0] for comp in file_name_components])
+    peptide_df["FileName"] = peptide_df["FileName"].astype("category")
 
-    peptide_df['LowScan'] = _convert_to_best_datatype([comp[1] for comp in file_name_components])
-    peptide_df['HighScan'] = _convert_to_best_datatype([comp[2] for comp in file_name_components])
-    peptide_df['Charge'] = _convert_to_best_datatype([comp[3] for comp in file_name_components])
+    peptide_df["LowScan"] = _convert_to_best_datatype([comp[1] for comp in file_name_components])
+    peptide_df["HighScan"] = _convert_to_best_datatype([comp[2] for comp in file_name_components])
+    peptide_df["Charge"] = _convert_to_best_datatype([comp[3] for comp in file_name_components])
 
     peptide_df = peptide_df.convert_dtypes()
     protein_df = protein_df.convert_dtypes()
 
-    if end_lines and end_lines[-1] == '':
+    if end_lines and end_lines[-1] == "":
         end_lines = end_lines[:-1]
 
     logger.info("Parsed %d proteins and %d peptides", len(protein_df), len(peptide_df))
@@ -238,8 +245,12 @@ def from_dta_select_filter(
     return header_lines, peptide_df, protein_df, end_lines
 
 
-def to_dta_select_filter(header_lines: list[str], peptide_df: pd.DataFrame, protein_df: pd.DataFrame,
-                         end_lines: list[str]) -> StringIO:
+def to_dta_select_filter(
+    header_lines: list[str],
+    peptide_df: pd.DataFrame,
+    protein_df: pd.DataFrame,
+    end_lines: list[str],
+) -> StringIO:
     """
     Convert the given header lines, peptide and protein dataframes, and end lines into a StringIO object.
 
@@ -266,40 +277,40 @@ def to_dta_select_filter(header_lines: list[str], peptide_df: pd.DataFrame, prot
 
     # Write protein and peptide data
     concatenated_file_names = peptide_df.apply(_create_file_name, axis=1)
-    peptide_df.drop(['FileName', 'LowScan', 'HighScan', 'Charge'], axis=1, inplace=True)
-    peptide_df['FileName'] = concatenated_file_names
+    peptide_df.drop(["FileName", "LowScan", "HighScan", "Charge"], axis=1, inplace=True)
+    peptide_df["FileName"] = concatenated_file_names
     # Re-order columns to make FileName the second column
-    peptide_df = _reorder_columns(peptide_df, 'FileName', 1)
+    peptide_df = _reorder_columns(peptide_df, "FileName", 1)
 
-    protein_data_str = protein_df.drop(['ProteinGroup'], axis=1).to_csv(header=False, index=False, sep='\t')
-    peptide_data_str = peptide_df.drop(['ProteinGroup'], axis=1).to_csv(header=False, index=False, sep='\t')
+    protein_data_str = protein_df.drop(["ProteinGroup"], axis=1).to_csv(header=False, index=False, sep="\t")
+    peptide_data_str = peptide_df.drop(["ProteinGroup"], axis=1).to_csv(header=False, index=False, sep="\t")
 
-    protein_data_str = protein_data_str.replace('\r', '')
-    peptide_data_str = peptide_data_str.replace('\r', '')
+    protein_data_str = protein_data_str.replace("\r", "")
+    peptide_data_str = peptide_data_str.replace("\r", "")
 
     current_protein_grp = 0
-    protein_lines = protein_data_str.split('\n')
-    peptide_lines = peptide_data_str.split('\n')
+    protein_lines = protein_data_str.split("\n")
+    peptide_lines = peptide_data_str.split("\n")
 
-    if protein_lines[-1] == '':
+    if protein_lines[-1] == "":
         protein_lines = protein_lines[:-1]
 
-    if peptide_lines[-1] == '':
+    if peptide_lines[-1] == "":
         peptide_lines = peptide_lines[:-1]
 
     protein_line_idx = 0
     peptide_line_idx = 0
 
     while protein_line_idx < len(protein_lines) and peptide_line_idx < len(peptide_lines):
-        if int(protein_df.iloc[protein_line_idx]['ProteinGroup']) == current_protein_grp:
-            file_output.write(protein_lines[protein_line_idx] + '\n')
+        if int(protein_df.iloc[protein_line_idx]["ProteinGroup"]) == current_protein_grp:
+            file_output.write(protein_lines[protein_line_idx] + "\n")
             protein_line_idx += 1
         else:
-            file_output.write(peptide_lines[peptide_line_idx] + '\n')
+            file_output.write(peptide_lines[peptide_line_idx] + "\n")
             peptide_line_idx += 1
             if peptide_line_idx < len(peptide_lines) and int(
-                    peptide_df.iloc[peptide_line_idx - 1]['ProteinGroup']) != int(
-                peptide_df.iloc[peptide_line_idx]['ProteinGroup']):
+                peptide_df.iloc[peptide_line_idx - 1]["ProteinGroup"]
+            ) != int(peptide_df.iloc[peptide_line_idx]["ProteinGroup"]):
                 current_protein_grp += 1
 
     # Write remaining protein and peptide lines
