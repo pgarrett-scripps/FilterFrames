@@ -1,16 +1,19 @@
 """Module providing functions for converting between DTASelect-filter.txt files and pandas DataFrame objects."""
 
+from __future__ import annotations
+
 import logging
 import os
+from collections.abc import Generator
 from enum import Enum
 from io import TextIOWrapper, StringIO
-from typing import Any, Generator, List, TextIO, Tuple, Union
+from typing import Any, TextIO
 
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-FileTypes = Union[str, TextIOWrapper, StringIO, TextIO]
+FileTypes = str | TextIOWrapper | StringIO | TextIO
 
 
 def _get_lines(file_input: FileTypes) -> Generator[str, None, None]:
@@ -52,7 +55,7 @@ def _get_lines(file_input: FileTypes) -> Generator[str, None, None]:
             raise ValueError(f'Unsupported input type: {type(file_input)}') from exc
 
 
-def _convert_to_best_datatype(values: List[Any]) -> List[Any]:
+def _convert_to_best_datatype(values: list[Any]) -> list[Any]:
     """
     Convert a list of values to the most suitable datatype.
 
@@ -110,7 +113,7 @@ def _reorder_columns(dataframe: pd.DataFrame, column: str, new_position: int) ->
     return dataframe[columns]
 
 
-def _write_lines(file_output, lines):
+def _write_lines(file_output: TextIOWrapper | StringIO, lines: list[str]) -> None:
     """
     Write a list of lines to a given file output.
 
@@ -124,8 +127,8 @@ def _write_lines(file_output, lines):
 
 
 def from_dta_select_filter(
-    file_input: Union[str, TextIOWrapper, StringIO, TextIO],
-) -> Tuple[List[str], pd.DataFrame, pd.DataFrame, List[str]]:
+    file_input: str | TextIOWrapper | StringIO | TextIO,
+) -> tuple[list[str], pd.DataFrame, pd.DataFrame, list[str]]:
     """
     Process the given file and extract relevant information to create peptide and protein dataframes.
 
@@ -152,8 +155,8 @@ def from_dta_select_filter(
 
     file_state = _FileState.HEADER
 
-    header_lines: List[str] = []
-    end_lines: List[str] = []
+    header_lines: list[str] = []
+    end_lines: list[str] = []
     peptide_data = None
     protein_data = None
     current_protein_grp = 0
@@ -235,8 +238,8 @@ def from_dta_select_filter(
     return header_lines, peptide_df, protein_df, end_lines
 
 
-def to_dta_select_filter(header_lines: List[str], peptide_df: pd.DataFrame, protein_df: pd.DataFrame,
-                         end_lines: List[str]) -> StringIO:
+def to_dta_select_filter(header_lines: list[str], peptide_df: pd.DataFrame, protein_df: pd.DataFrame,
+                         end_lines: list[str]) -> StringIO:
     """
     Convert the given header lines, peptide and protein dataframes, and end lines into a StringIO object.
 
