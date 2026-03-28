@@ -1,15 +1,19 @@
-"""Module providing function for converting between DTASelectFilter.tx files and pandas DataFrame objects"""
+"""Module providing functions for converting between DTASelect-filter.txt files and pandas DataFrame objects."""
+
+import logging
 import os
 from enum import Enum
 from io import TextIOWrapper, StringIO
-from typing import List, Union, Any, TextIO, Generator
+from typing import Any, Generator, List, TextIO, Tuple, Union
 
 import pandas as pd
 
-FILE_TYPES = Union[str, TextIOWrapper, StringIO, TextIO]
+logger = logging.getLogger(__name__)
+
+FileTypes = Union[str, TextIOWrapper, StringIO, TextIO]
 
 
-def _get_lines(file_input: FILE_TYPES) -> Generator[str, None, None]:
+def _get_lines(file_input: FileTypes) -> Generator[str, None, None]:
     """
     Retrieve lines from a file or string input.
 
@@ -25,31 +29,30 @@ def _get_lines(file_input: FILE_TYPES) -> Generator[str, None, None]:
     Raises:
         ValueError: If the input type is not supported.
     """
-    if isinstance(file_input, str): # File path or string
+    if isinstance(file_input, str):  # File path or string
         if os.path.exists(file_input):
+            logger.debug("Reading from file path: %s", file_input)
             with open(file=file_input, mode='r', encoding='UTF-8') as file:
                 for line in file:
                     yield line.rstrip('\n')
         else:
+            logger.debug("Reading from raw string input")
             for line in file_input.split('\n'):
                 yield line.rstrip('\n')
-    elif isinstance(file_input, (TextIOWrapper, TextIO)): # TextIOWrapper or StringIO
+    elif isinstance(file_input, (TextIOWrapper, StringIO)):
+        logger.debug("Reading from %s object", type(file_input).__name__)
         file_input.seek(0)
         for line in file_input:
-            yield line.rstrip('\n')
-    elif isinstance(file_input, StringIO): # StringIO
-        file_input.seek(0)
-        for line in file_input.readlines():
             yield line.rstrip('\n')
     else:
         try:
             for line in file_input:
                 yield line.decode('UTF-8').rstrip('\n')
-        except Exception as e:
-            raise ValueError(f'Unsupported input type: {type(file_input)}!')
+        except (AttributeError, TypeError, UnicodeDecodeError) as exc:
+            raise ValueError(f'Unsupported input type: {type(file_input)}') from exc
 
 
-def _convert_to_best_datatype(values: List[Any]):
+def _convert_to_best_datatype(values: List[Any]) -> List[Any]:
     """
     Convert a list of values to the most suitable datatype.
 
@@ -64,11 +67,9 @@ def _convert_to_best_datatype(values: List[Any]):
     Raises:
         ValueError: If unable to convert values to any datatype.
     """
-
     for datatype in [float, int, str]:
         try:
-            converted_values = [datatype(value) for value in values]
-            return converted_values
+            return [datatype(value) for value in values]
         except (ValueError, TypeError):
             continue
     raise ValueError("Unable to convert values to any datatype")
@@ -122,8 +123,9 @@ def _write_lines(file_output, lines):
         file_output.write(line + '\n')
 
 
-def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextIO]) -> (
-        List[str], pd.DataFrame, pd.DataFrame, List[str]):
+def from_dta_select_filter(
+    file_input: Union[str, TextIOWrapper, StringIO, TextIO],
+) -> Tuple[List[str], pd.DataFrame, pd.DataFrame, List[str]]:
     """
     Process the given file and extract relevant information to create peptide and protein dataframes.
 
@@ -143,21 +145,21 @@ def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextI
 
     lines = _get_lines(file_input)
 
-    class FileState(Enum):
-        """
-        Enum for specifying the different parts of the DTASelect-filter.txt file
-        """
+    class _FileState(Enum):
         HEADER = 1
         DATA = 2
         INFO = 3
 
-    file_state = FileState.HEADER
+    file_state = _FileState.HEADER
 
-    header_lines, end_lines = [], []
-    peptide_data, protein_data = None, None
-    current_protein_grp, peptide_line_cnt = 0, 0
+    header_lines: List[str] = []
+    end_lines: List[str] = []
+    peptide_data = None
+    protein_data = None
+    current_protein_grp = 0
+    peptide_line_cnt = 0
 
-    for i, line in enumerate(lines):
+    for line in lines:
         line_elements = line.rstrip().split("\t")
 
         if line.startswith('Locus'):  # Protein Line Header
@@ -169,16 +171,16 @@ def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextI
             peptide_data['ProteinGroup'] = []
 
             header_lines.append(line)
-            file_state = FileState.DATA
+            file_state = _FileState.DATA
             continue
 
         if len(line_elements) > 1 and line_elements[1] == "Proteins":
-            file_state = FileState.INFO
+            file_state = _FileState.INFO
 
-        if file_state == FileState.HEADER:
+        if file_state == _FileState.HEADER:
             header_lines.append(line)
 
-        if file_state == FileState.DATA:
+        if file_state == _FileState.DATA:
             if line_elements[0] == '' or '*' in line_elements[0] or line_elements[0].isnumeric():
 
                 for key, value in zip(peptide_data, line_elements):
@@ -195,8 +197,13 @@ def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextI
                     protein_data[key].append(value)
                 protein_data['ProteinGroup'].append(current_protein_grp)
 
-        if file_state == FileState.INFO:
+        if file_state == _FileState.INFO:
             end_lines.append(line)
+
+    if peptide_data is None or protein_data is None:
+        raise ValueError("Input does not appear to be a valid DTASelect-filter file: missing header columns")
+
+    logger.debug("Parsed %d peptide columns, %d protein columns", len(peptide_data), len(protein_data))
 
     for k in peptide_data:
         peptide_data[k] = _convert_to_best_datatype(peptide_data[k])
@@ -220,8 +227,10 @@ def from_dta_select_filter(file_input: Union[str, TextIOWrapper, StringIO, TextI
     peptide_df = peptide_df.convert_dtypes()
     protein_df = protein_df.convert_dtypes()
 
-    if end_lines[-1] == '':
+    if end_lines and end_lines[-1] == '':
         end_lines = end_lines[:-1]
+
+    logger.info("Parsed %d proteins and %d peptides", len(protein_df), len(peptide_df))
 
     return header_lines, peptide_df, protein_df, end_lines
 
